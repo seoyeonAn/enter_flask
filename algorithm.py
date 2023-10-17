@@ -1,40 +1,67 @@
+"""
+1. flask가 기본으로 실행되는 python 파일이 app.py인데, 이를 실행하고자하는 프로젝트 파이썬 파일(algorithm)로 변경
+▶ set FLASK_APP=algorithm
+2. 수정된 코드가 바로 반영되며 오류를 자세히 보여주는 디버그 모드 활성화
+▶ set FLASK_DEBUG=1
+3. flask 실행
+▶ flask run
+"""
+
+# pip install cx_Oracle
+# pip install Flask
+# pip install pandas
+# pip install scikit-learn
 import cx_Oracle
-from flask import Flask, request, jsonify
+from flask import Flask, request
 from flask_cors import CORS
 import json
 from collections import Counter
-
 import pandas as pd
-
-#pip install scikit-learn
-# 코사인 유사도
+import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from datetime import datetime
 
-# AST모듈의 literal_eval을 사용하여 str타입을 list타입으로 변경
-# tag가 여러 개인 것을 list로 변경
-from ast import literal_eval
+"""
+~~~ 데이터 전처리 ~~~
+1. 로그인했을 때 store에 저장된 사용자 email을 react에서 flask로 전달
+2. 로그인한 email에 해당되는 enter_list 추출
+3. enter_list에서 가장 많은 tag 추출
+4. 전체 문화예술 정보 info_list 저장
+5. info_list와 enter_list를 left join해 사용자가 엔터리스트에 추가한 정보 제외
+
+
+~~~ 콘텐츠 기반 필터링 추천 ~~~
+1. TF-IDF(Term Frequency-Inverse Document Frequency) 벡터화
+▶ TF-IDF : 단어의 빈도를 사용해 DTM(Document-Term Matrix : 문서 집합을 기반으로 각 문서에서 어떤 단어가 얼마나 나타나는지를 나타내는 행렬) 내의 각 단어들마다 중요한 정도를 가중치로 주는 방법
+▶ 벡터화 : 행렬을 세로 벡터로 바꾸는 선형변환
+2. cosine similarity
+scikit-learn에서 지원하는 consine similarity 이용
+"""
 
 # Oralce DB 연결 설정
 connection = cx_Oracle.connect('hr', 'a1234', 'localhost:1521/xe')
 
 # Flask 어플리케이션 초기화
 app = Flask(__name__)
+
+# React에서(다른 도메인에서) Flask 리소스를 요청하고 공유할 수 있게 설정
 CORS(app)
 
+# React에서 로그인 버튼을 클릭하면 store에 저장되는 email을 'http://127.0.0.1/flask_login'로 보냄
 @app.route('/flask_login', methods=['POST'])
 def flask_login():
+    # React에서 보낸 POST 요청의 JSON형식의 데이터를 'email'이라는 변수로 받음
     email = request.get_json()
-    #print("React에서 로그인한 이메일 :", email)
+    # print("React에서 로그인한 이메일 :", email)
     result_email = get_enter(email)
     return json.dumps(result_email)
 
 def get_enter(email):
-    # argument가 정상적으로 전달되었는지 확인
-    #print('argument 확인 : ', email)
+    # print('argument가 정상적으로 전달되었는지 확인 : ', email)
     cur = connection.cursor()
-    sql = "SELECT e.enter_seq, e.email, e.info_seq, i.title, i.tag FROM enterlist e, information i WHERE i.info_seq=e.info_seq and email = :email"   
-    cur.execute(sql, email)
+    enter_sql = "SELECT e.enter_seq, e.email, e.info_seq, i.title, i.tag FROM enterlist e, information i WHERE i.info_seq=e.info_seq and email = :email"   
+    cur.execute(enter_sql, email)
     rows = cur.fetchall()
     cur.close()
 
@@ -48,25 +75,25 @@ def get_enter(email):
             'tag': row[4],
         }
         enter_list.append(enter_dict)
-    # 리스트를 데이터 프레임으로 변환
-    enter_df = pd.DataFrame(enter_list)
 
-    # 결과에서 "tag" 값을 추출하여 카운트
+    # enter_list에서 "tag" 값을 추출하여 카운트
     tag_counts = Counter([row['tag'] for row in enter_list])
 
     # "tag" 카운트를 기반으로 가장 많이 나타나는 태그를 찾음
     most_common_tag = max(tag_counts, key=tag_counts.get)
 
-    # 결과 출력
     print(f"가장 많이 등장하는 태그: {most_common_tag}")
 
     # 커서 다시 열기
     cur = connection.cursor()
-    #sql2 = "SELECT info_seq, title, tag, start_date, end_date, thumbnail FROM information"
-    sql2 = "SELECT info_seq, title, tag FROM information" 
-    cur.execute(sql2)
+    info_sql = "SELECT info_seq, title, tag, thumbnail, start_date, end_date FROM information" 
+    cur.execute(info_sql)
     rows = cur.fetchall()
     cur.close()
+
+    # 문자열을 datetime 객체로 변환
+    #start_date = datetime.strptime(row[4], "%Y-%m-%d").date()  # date 객체로 변환
+    #end_date = datetime.strptime(row[5], "%Y-%m-%d").date()  # date 객체로 변환
 
     info_list = []
     for row in rows:
@@ -74,16 +101,16 @@ def get_enter(email):
             'info_seq': row[0],
             'title': row[1], 
             'tag': row[2],
-            # 'start_date' : row[3],
-            # 'end_date' : row[4],
-            # 'thumbnail' : row[3]
+            'thumbnail' : row[3],
+            'start_date' : row[4],
+            'end_date' : row[5]
         }
         info_list.append(info_dict)
 
-    info_df = pd.DataFrame(info_list)
 
-    # 전체 information DF에서 로그인한 사용자의 엔터리스트 DF 빼기
-    # 사용자가 이미 엔터리스트에 추가했던 정보는 추천하지 않기 위한 작업
+    # 리스트를 보기 좋게 표 형식의 데이터 프레임으로 변환
+    enter_df = pd.DataFrame(enter_list)
+    info_df = pd.DataFrame(info_list)
 
     # 공통 열을 기준으로 일치하지 않는 데이터 추출
     result_df = pd.merge(info_df, enter_df, how="left", indicator=True)
@@ -91,35 +118,42 @@ def get_enter(email):
     #print("제외한 개수 : ",result_df.count())
     #print("엔터리스트 제외 information=====\n",result_df)
 
-    # 공백을 기준으로 구분되는 문자열로 변환
-    #result_df['tag'] = result_df['tag'].apply(lambda x : (' ').join(x))
-
-    #result_df['tag'] = result_df['tag'].apply(literal_eval)
-    result_df['tag']
-
-
-    # 가장 많이 언급된 most_common_tag을 추가해 TF-IDF 백터화
-    result_df['tag'] = ''+result_df['tag']+''.join(most_common_tag)
-    
     # TF-IDF 벡터화
     tfidf_vectorizer = TfidfVectorizer()
-    tfidf_matrix = tfidf_vectorizer.fit_transform(result_df['tag'])
+    tag_tfidf_matrix = tfidf_vectorizer.fit_transform(result_df['tag'])
 
-    # 코사인 유사도 계산
-    cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
+    # most_common_tag과 tag 간의 코사인 유사도 계산
+    cosine_sim = cosine_similarity(tag_tfidf_matrix, tfidf_vectorizer.transform([most_common_tag]))
 
-    print(cosine_sim)
-    # 코사인 유사도 행렬에서 가장 유사도가 높은 4개 추천
-    indices = cosine_sim[0].argsort()[-5:-1][::-1]  # 제일 높은 유사도 순으로 정렬하고 상위 4개 추출
+    # 계산한 코사인 유사도를 result_df의 컬럼으로 추가
+    result_df['cosine_sim']=cosine_sim
 
-    recommended_data = result_df.iloc[indices]
-    print(recommended_data)
+    # 코사인 유사도가 가장 높은 4개의 데이터를 top_4라는 데이터 프레임으로 저장
+    top_4 = result_df.sort_values(by='cosine_sim', ascending=False).head(4)
 
-    return enter_list
+    #print(top_4)
+
+    # top_4 데이터 프레임을 list로 변환
+    algorithm_list = top_4.values.tolist()
+
+    # print(algorithm_list)
+
+    res_list = []
+    for row in algorithm_list:
+        algo_dict = {
+            'info_seq': row[0],
+            'title': row[1], 
+            'tag': row[2],
+            'thumbnail':row[3],
+            'start_date' : str((row[4]).strftime("%Y-%m-%d")),
+            'end_date' : str((row[5]).strftime("%Y-%m-%d")),
+            'cosine_sim' : row[6],
+        }
+        res_list.append(algo_dict)
+
+    print(res_list)
+    return res_list
 
 # 서버 실행
-# debug=True가 잘 안먹히므로 set FLASK_DEBUG=1 설정 후 flask run
 if __name__ == '__main__':
     app.run(host='127.0.0.1')
-
-
