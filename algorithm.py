@@ -65,91 +65,124 @@ def get_enter(email):
     rows = cur.fetchall()
     cur.close()
 
-    enter_list = []
-    for row in rows:
-        enter_dict = {
-            'enter_seq': row[0],
-            'email': row[1],
-            'info_seq': row[2],
-            'title': row[3],
-            'tag': row[4],
-        }
-        enter_list.append(enter_dict)
+    # 로그인한 사용자가 엔터리스트에 1개 이상 추가했다면 실행할 코드
+    if rows :
+        enter_list = []
+        for row in rows:
+            enter_dict = {
+                'enter_seq': row[0],
+                'email': row[1],
+                'info_seq': row[2],
+                'title': row[3],
+                'tag': row[4],
+            }
+            enter_list.append(enter_dict)
 
-    # enter_list에서 "tag" 값을 추출하여 카운트
-    tag_counts = Counter([row['tag'] for row in enter_list])
+        # enter_list에서 "tag" 값을 추출하여 카운트
+        tag_counts = Counter([row['tag'] for row in enter_list])
 
-    # "tag" 카운트를 기반으로 가장 많이 나타나는 태그를 찾음
-    most_common_tag = max(tag_counts, key=tag_counts.get)
+        # "tag" 카운트를 기반으로 가장 많이 나타나는 태그를 찾음
+        most_common_tag = max(tag_counts, key=tag_counts.get)
 
-    print(f"가장 많이 등장하는 태그: {most_common_tag}")
+        print(f"가장 많이 등장하는 태그: {most_common_tag}")
 
-    # 커서 다시 열기
-    cur = connection.cursor()
-    info_sql = "SELECT info_seq, title, tag, thumbnail, start_date, end_date FROM information" 
-    cur.execute(info_sql)
-    rows = cur.fetchall()
-    cur.close()
+        # 커서 다시 열기
+        cur = connection.cursor()
+        info_sql = "SELECT info_seq, title, tag, thumbnail, start_date, end_date FROM information" 
+        cur.execute(info_sql)
+        rows = cur.fetchall()
+        cur.close()
 
-    info_list = []
-    for row in rows:
-        info_dict = {
-            'info_seq': row[0],
-            'title': row[1], 
-            'tag': row[2],
-            'thumbnail' : row[3],
-            'start_date' : row[4],
-            'end_date' : row[5]
-        }
-        info_list.append(info_dict)
+        info_list = []
+        for row in rows:
+            info_dict = {
+                'info_seq': row[0],
+                'title': row[1], 
+                'tag': row[2],
+                'thumbnail' : row[3],
+                'start_date' : row[4],
+                'end_date' : row[5]
+            }
+            info_list.append(info_dict)
 
 
-    # 리스트를 보기 좋게 표 형식의 데이터 프레임으로 변환
-    enter_df = pd.DataFrame(enter_list)
-    info_df = pd.DataFrame(info_list)
+        # 리스트를 보기 좋게 표 형식의 데이터 프레임으로 변환
+        enter_df = pd.DataFrame(enter_list)
+        info_df = pd.DataFrame(info_list)
 
-    # 공통 열을 기준으로 일치하지 않는 데이터 추출
-    result_df = pd.merge(info_df, enter_df, how="left", indicator=True)
-    result_df=result_df.query("_merge=='left_only'").drop(columns=["_merge"]).drop(columns=["enter_seq"]).drop(columns=["email"])
-    #print("제외한 개수 : ",result_df.count())
-    #print("엔터리스트 제외 information=====\n",result_df)
+        # 공통 열을 기준으로 일치하지 않는 데이터 추출
+        result_df = pd.merge(info_df, enter_df, how="left", indicator=True)
+        result_df=result_df.query("_merge=='left_only'").drop(columns=["_merge"]).drop(columns=["enter_seq"]).drop(columns=["email"])
+        #print("제외한 개수 : ",result_df.count())
+        #print("엔터리스트 제외 information=====\n",result_df)
 
-    # TF-IDF 벡터화
-    tfidf_vectorizer = TfidfVectorizer()
-    tag_tfidf_matrix = tfidf_vectorizer.fit_transform(result_df['tag'])
+        # TF-IDF 벡터화
+        tfidf_vectorizer = TfidfVectorizer()
+        tag_tfidf_matrix = tfidf_vectorizer.fit_transform(result_df['tag'])
 
-    # most_common_tag과 tag 간의 코사인 유사도 계산
-    cosine_sim = cosine_similarity(tag_tfidf_matrix, tfidf_vectorizer.transform([most_common_tag]))
+        # most_common_tag과 tag 간의 코사인 유사도 계산
+        cosine_sim = cosine_similarity(tag_tfidf_matrix, tfidf_vectorizer.transform([most_common_tag]))
 
-    # 계산한 코사인 유사도를 result_df의 컬럼으로 추가
-    result_df['cosine_sim']=cosine_sim
+        # 계산한 코사인 유사도를 result_df의 컬럼으로 추가
+        result_df['cosine_sim']=cosine_sim
 
-    # 코사인 유사도가 가장 높은 4개의 데이터를 top_4라는 데이터 프레임으로 저장
-    top_4 = result_df.sort_values(by='cosine_sim', ascending=False).head(4)
+        # 코사인 유사도가 가장 높은 4개의 데이터를 top_4라는 데이터 프레임으로 저장
+        top_4 = result_df.sort_values(by='cosine_sim', ascending=False).head(4)
 
-    #print(top_4)
+        #print(top_4)
 
-    # top_4 데이터 프레임을 list로 변환
-    algorithm_list = top_4.values.tolist()
+        # top_4 데이터 프레임을 list로 변환
+        algorithm_list = top_4.values.tolist()
 
-    # print(algorithm_list)
+        # print(algorithm_list)
 
-    res_list = []
-    for row in algorithm_list:
-        algo_dict = {
-            'info_seq': row[0],
-            'title': row[1], 
-            'tag': row[2],
-            'thumbnail':row[3],
-            'start_date' : str((row[4]).strftime("%Y-%m-%d")),
-            'end_date' : str((row[5]).strftime("%Y-%m-%d")),
-            'cosine_sim' : row[6],
-        }
-        res_list.append(algo_dict)
+        res_list = []
+        for row in algorithm_list:
+            algo_dict = {
+                'info_seq': row[0],
+                'title': row[1], 
+                'tag': row[2],
+                'thumbnail':row[3],
+                'start_date' : str((row[4]).strftime("%Y-%m-%d")),
+                'end_date' : str((row[5]).strftime("%Y-%m-%d")),
+                'cosine_sim' : row[6],
+            }
+            res_list.append(algo_dict)
 
-    print(res_list)
-    return res_list
+        print(res_list)
+        return res_list
+    
+    # 로그인한 사용자가 엔터리스트에 1개 이상 추가하지 않았다면 실행할 코드
+    else:
+        print("엔터리스트가 비었음!")
+        cur = connection.cursor()
+        noLogin_sql = """
+        SELECT * 
+        FROM (SELECT e.info_seq, COUNT(*) as count, i.title, i.thumbnail, i.start_date, i.end_date 
+        FROM enterlist e, information i
+        WHERE e.info_seq = i.info_seq
+        GROUP BY e.info_seq,i.title, i.thumbnail, i.start_date, i.end_date 
+        ORDER BY count DESC)
+        WHERE ROWNUM <= 4""" 
 
+        cur.execute(noLogin_sql)
+        rows = cur.fetchall()
+        cur.close()
+
+        noLogin_list = []
+        for row in rows:
+            noLogin_dict = {
+                'info_seq': row[0],
+                'count': row[1], 
+                'title': row[2],
+                'thumbnail' : row[3],
+                'start_date' : str((row[4]).strftime("%Y-%m-%d")),
+                'end_date' : str((row[5]).strftime("%Y-%m-%d")),
+            }
+            noLogin_list.append(noLogin_dict)
+
+        return noLogin_list
+    
 # 서버 실행
 if __name__ == '__main__':
     app.run(host='127.0.0.1')
