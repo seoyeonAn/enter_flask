@@ -91,10 +91,6 @@ def get_enter(email):
     rows = cur.fetchall()
     cur.close()
 
-    # 문자열을 datetime 객체로 변환
-    #start_date = datetime.strptime(row[4], "%Y-%m-%d").date()  # date 객체로 변환
-    #end_date = datetime.strptime(row[5], "%Y-%m-%d").date()  # date 객체로 변환
-
     info_list = []
     for row in rows:
         info_dict = {
