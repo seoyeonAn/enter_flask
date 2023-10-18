@@ -138,17 +138,32 @@ def get_enter(email):
 
         res_list = []
         for row in algorithm_list:
-            algo_dict = {
-                'info_seq': row[0],
-                'title': row[1], 
-                'tag': row[2],
-                'thumbnail':row[3],
-                'start_date' : str((row[4]).strftime("%Y-%m-%d")),
-                'end_date' : str((row[5]).strftime("%Y-%m-%d")),
-                'cosine_sim' : row[6],
-            }
-            res_list.append(algo_dict)
+            # start_date가 비어있을 경우
+            if pd.isna(row[4]) :
+                algo_dict = {
+                    'info_seq': row[0],
+                    'title': row[1], 
+                    'tag': row[2],
+                    'thumbnail':row[3],
+                    'start_date' : "",
+                    'end_date' : "",
+                    'cosine_sim' : row[6],
+                }
+                res_list.append(algo_dict)
 
+            else :
+                algo_dict = {
+                    'info_seq': row[0],
+                    'title': row[1], 
+                    'tag': row[2],
+                    'thumbnail':row[3],
+                    'start_date' : str((row[4]).strftime("%Y-%m-%d")),
+                    'end_date' : str((row[5]).strftime("%Y-%m-%d")),
+                    'cosine_sim' : row[6],
+                }
+                res_list.append(algo_dict)
+
+        print(type(row[4]))
         print(res_list)
         return res_list
     
@@ -171,15 +186,27 @@ def get_enter(email):
 
         noLogin_list = []
         for row in rows:
-            noLogin_dict = {
-                'info_seq': row[0],
-                'count': row[1], 
-                'title': row[2],
-                'thumbnail' : row[3],
-                'start_date' : str((row[4]).strftime("%Y-%m-%d")),
-                'end_date' : str((row[5]).strftime("%Y-%m-%d")),
-            }
-            noLogin_list.append(noLogin_dict)
+           # start_date가 비어있을 경우
+            if pd.isna(row[4]) :
+                noLogin_dict = {
+                    'info_seq': row[0],
+                    'count': row[1], 
+                    'title': row[2],
+                    'thumbnail' : row[3],
+                    'start_date' : "",
+                    'end_date' : "",
+                }
+                noLogin_list.append(noLogin_dict)
+            else :
+                 noLogin_dict = {
+                    'info_seq': row[0],
+                    'count': row[1], 
+                    'title': row[2],
+                    'thumbnail' : row[3],
+                    'start_date' : str((row[4]).strftime("%Y-%m-%d")),
+                    'end_date' : str((row[5]).strftime("%Y-%m-%d")),
+                }
+                 noLogin_list.append(noLogin_dict)
 
         return noLogin_list
     
