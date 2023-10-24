@@ -48,6 +48,39 @@ app = Flask(__name__)
 # React에서(다른 도메인에서) Flask 리소스를 요청하고 공유할 수 있게 설정
 CORS(app)
 
+# React에서 메인페이지에 접속했을 때 formmatedDate를 'http://127.0.0.1:5000/flask_calendar'로 보냄
+@app.route('/flask_calendar', methods=['POST'])
+def flask_calendar():
+    # formmatedDate =  request.get_json()
+
+    formmatedDate =  request.get_json().get('formattedDate')
+
+    if formmatedDate:
+        formmatedDate = datetime.strptime(formmatedDate, '%Y/%m/%d')
+        # print("formmatedDate : ",formmatedDate)
+        # print("type : ", type(formmatedDate))
+
+        cur = connection.cursor()
+        calendar_sql = "SELECT info_seq, title, start_date, end_date FROM information WHERE start_date <= :formmatedDate AND end_date >= :formmatedDate ORDER BY ABS(TO_DATE(start_date, 'YYYY/MM/DD') - TO_DATE('2023/10/24', 'YYYY/MM/DD'))"   
+        cur.execute(calendar_sql, {'formmatedDate' : formmatedDate})
+        rows = cur.fetchall()
+        cur.close()
+
+        calendar_list = []
+        for row in rows:
+            calendar_dict = {
+                'info_seq': row[0],
+                'title': row[1],
+                'start_date': str((row[2]).strftime("%Y-%m-%d")),
+                'end_date': str((row[3]).strftime("%Y-%m-%d")),
+                }
+            calendar_list.append(calendar_dict)
+
+        # print(calendar_list)
+        return calendar_list
+    else:
+        print("")
+
 # React에서 로그인 버튼을 클릭하면 store에 저장되는 email을 'http://127.0.0.1/flask_login'로 보냄
 @app.route('/flask_login', methods=['POST'])
 def flask_login():
@@ -58,7 +91,7 @@ def flask_login():
     return json.dumps(result_email)
 
 def get_enter(email):
-    # print('argument가 정상적으로 전달되었는지 확인 : ', email)
+    print('argument가 정상적으로 전달되었는지 확인 : ', email)
     cur = connection.cursor()
     enter_sql = "SELECT e.enter_seq, e.email, e.info_seq, i.title, i.tag FROM enterlist e, information i WHERE i.info_seq=e.info_seq and email = :email"   
     cur.execute(enter_sql, email)
@@ -105,7 +138,6 @@ def get_enter(email):
             }
             info_list.append(info_dict)
 
-
         # 리스트를 보기 좋게 표 형식의 데이터 프레임으로 변환
         enter_df = pd.DataFrame(enter_list)
         info_df = pd.DataFrame(info_list)
@@ -129,7 +161,7 @@ def get_enter(email):
         # 코사인 유사도가 가장 높은 4개의 데이터를 top_4라는 데이터 프레임으로 저장
         top_4 = result_df.sort_values(by='cosine_sim', ascending=False).head(4)
 
-        #print(top_4)
+        print(top_4)
 
         # top_4 데이터 프레임을 list로 변환
         algorithm_list = top_4.values.tolist()
@@ -207,7 +239,7 @@ def get_enter(email):
                     'end_date' : str((row[5]).strftime("%Y-%m-%d")),
                 }
                  noLogin_list.append(noLogin_dict)
-
+        print(noLogin_list)
         return noLogin_list
     
 # 서버 실행
