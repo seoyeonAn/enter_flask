@@ -4,7 +4,8 @@
 2. 수정된 코드가 바로 반영되며 오류를 자세히 보여주는 디버그 모드 활성화
 ▶ set FLASK_DEBUG=1
 3. flask 실행
-▶ flask run
+▶ flask run --host=172.16.141.13
+flask run
 """
 
 # pip install cx_Oracle
@@ -40,7 +41,8 @@ scikit-learn에서 지원하는 consine similarity 이용
 """
 
 # Oralce DB 연결 설정
-connection = cx_Oracle.connect('hr', 'a1234', 'localhost:1521/xe')
+# connection = cx_Oracle.connect('hr', 'a1234', 'localhost:1521/xe')
+connection = cx_Oracle.connect('hr', 'a1234', '172.16.141.13:1521/xe')
 
 # Flask 어플리케이션 초기화
 app = Flask(__name__)
@@ -52,7 +54,7 @@ CORS(app)
 @app.route('/flask_calendar', methods=['POST'])
 def flask_calendar():
     # formmatedDate =  request.get_json()
-
+    print('여기!!!!!')
     formmatedDate =  request.get_json().get('formattedDate')
 
     if formmatedDate:
@@ -244,4 +246,5 @@ def get_enter(email):
     
 # 서버 실행
 if __name__ == '__main__':
-    app.run(host='127.0.0.1')
+    #app.run(host='127.0.0.1')
+    app.run('172.16.141.13', port=5000)
